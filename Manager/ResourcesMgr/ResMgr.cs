@@ -4,6 +4,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
+/// <summary>
+/// Resources加载方案
+/// </summary>
 public class ResMgr : BaseSingletonAutoMono<ResMgr>
 {
     //同步加载资源
