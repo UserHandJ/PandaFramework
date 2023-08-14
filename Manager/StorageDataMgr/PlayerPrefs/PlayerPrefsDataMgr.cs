@@ -13,7 +13,7 @@ public class PlayerPrefsDataMgr : BaseSingleton<PlayerPrefsDataMgr>
     private void MyDebug(string db)
     {
 #if UNITY_EDITOR
-        Debug.Log(db);
+        //Debug.Log(db);
 #endif
     }
     /// <summary>
@@ -237,6 +237,5 @@ public class PlayerPrefsDataMgr : BaseSingleton<PlayerPrefsDataMgr>
         {
             return LoadData(fieldType, keyName);
         }
-        return null;
     }
 }
