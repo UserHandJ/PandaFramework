@@ -13,6 +13,9 @@ using UnityEngine.Networking;
 /// </summary>
 public class ABUpdataMgr : BaseMonoSingleton<ABUpdataMgr>
 {
+    /// <summary>
+    /// AB包信息类
+    /// </summary>
     public class ABInfo
     {
         public string name;
@@ -25,6 +28,9 @@ public class ABUpdataMgr : BaseMonoSingleton<ABUpdataMgr>
             this.md5 = md5;
         }
     }
+    /// <summary>
+    /// 下载地址，自行修改。这里是自己搭建的一个测试的ftp服务器
+    /// </summary>
     private string DownLoadURL = "ftp://192.168.31.48/AB/PC/";
     private string Ftp_UserName = "Admin";
     private string Ftp_Password = "Admin123";
@@ -143,7 +149,7 @@ public class ABUpdataMgr : BaseMonoSingleton<ABUpdataMgr>
     /// <summary>
     /// 本地AB包对比文件加载 解析信息
     /// </summary>
-    /// <param name="overCallBack"></param>
+    /// <param name="overCallBack">解析结束回调</param>
     public void GetLocalABCompareFileInfo(UnityAction<bool> overCallBack)
     {
         //如果可读可写文件夹中 存在对比文件 说明之前已经下载更新过了
