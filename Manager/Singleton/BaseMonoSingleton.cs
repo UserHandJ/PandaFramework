@@ -8,7 +8,7 @@ using UnityEngine;
 /// 这个可以也自己手动管理挂载到场景上,
 /// </summary>
 /// <typeparam name="T"></typeparam>
-public class BaseSingletonMono<T> : MonoBehaviour where T : MonoBehaviour
+public class BaseMonoSingleton<T> : MonoBehaviour where T : MonoBehaviour
 {
     private static T instance;
     public static T Instance

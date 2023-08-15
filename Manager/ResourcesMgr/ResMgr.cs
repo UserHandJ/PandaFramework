@@ -7,7 +7,7 @@ using UnityEngine.Events;
 /// <summary>
 /// Resources加载方案
 /// </summary>
-public class ResMgr : BaseSingletonAutoMono<ResMgr>
+public class ResMgr : BaseMonoSingletonAuto<ResMgr>
 {
     //同步加载资源
     public T Load<T>(string path) where T : UnityEngine.Object

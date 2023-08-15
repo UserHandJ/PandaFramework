@@ -5,9 +5,10 @@ using UnityEngine;
 /// <summary>
 /// 自动生成到场景的单例基类
 /// 需要时直接用
+/// 继承这种单例模式可以让其一直存在在场景中
 /// </summary>
 /// <typeparam name="T"></typeparam>
-public class BaseSingletonAutoMono<T> : MonoBehaviour where T : MonoBehaviour
+public class BaseMonoSingletonAuto<T> : MonoBehaviour where T : MonoBehaviour
 {
     private static T instance;
     public static T Instance

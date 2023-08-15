@@ -11,7 +11,7 @@ using UnityEngine.Networking;
 /// <summary>
 /// 管理下载AB包
 /// </summary>
-public class ABUpdataMgr : BaseSingletonMono<ABUpdataMgr>
+public class ABUpdataMgr : BaseMonoSingleton<ABUpdataMgr>
 {
     public class ABInfo
     {

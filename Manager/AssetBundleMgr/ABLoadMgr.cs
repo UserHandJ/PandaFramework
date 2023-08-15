@@ -6,7 +6,7 @@ using UnityEngine.Events;
 /// <summary>
 /// AB包加载管理器
 /// </summary>
-public class ABLoadMgr : BaseSingletonAutoMono<ABLoadMgr>
+public class ABLoadMgr : BaseMonoSingletonAuto<ABLoadMgr>
 {
     //主包
     private AssetBundle mainAB = null;
