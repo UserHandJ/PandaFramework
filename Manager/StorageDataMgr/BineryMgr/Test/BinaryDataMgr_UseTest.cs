@@ -14,9 +14,9 @@ public class BinaryDataMgr_UseTest : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        //Save("测试数据");
+        //Save("SaveDataName");
 
-        CustomDate_By_BinaryDataMgr_Use cbu = BinaryDataMgr.Instance.Load<CustomDate_By_BinaryDataMgr_Use>("测试数据");
+        CustomDate_By_BinaryDataMgr_Use cbu = BinaryDataMgr.Instance.Load<CustomDate_By_BinaryDataMgr_Use>("SaveDataName");
     }
     private void Save(string fileName)
     {
