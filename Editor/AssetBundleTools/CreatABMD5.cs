@@ -11,7 +11,7 @@ using UnityEngine;
 /// 对比文件格式：
 /// 文件名 文件大小 MD5码|文件名 文件大小 MD5码
 /// </summary>
-public class CreatABMD5 
+public class CreatABMD5
 {
     [MenuItem("Tools/AB包工具/创建对比文件")]
     public static void CreateABCompareFile()
@@ -26,8 +26,8 @@ public class CreatABMD5
 
         foreach (FileInfo item in fileInfos)
         {
-            //没有后缀的 才是AB包 我们只想要AB包的信息
-            if(item.Extension == "")
+            //没有后缀的 才是AB包 这里只想要AB包的信息
+            if (item.Extension == "")
             {
                 //拼接一个AB包的信息
                 abCompareInfo += item.Name + " " + item.Length + " " + GetMD5(item.FullName);
@@ -42,10 +42,14 @@ public class CreatABMD5
         Debug.Log("AB包对比文件生成成功,路径：" + DataConfig.CurrentABFilePath + "/ABCompareInfo.txt");
 
     }
-
+    /// <summary>
+    /// 得到文件的MD5码
+    /// </summary>
+    /// <param name="filePath">文件路径</param>
+    /// <returns></returns>
     public static string GetMD5(string filePath)
     {
-        using (FileStream file = new FileStream(filePath,FileMode.Open))
+        using (FileStream file = new FileStream(filePath, FileMode.Open))
         {
             //声明一个MD5对象 用于生成MD5码
             MD5 md5 = new MD5CryptoServiceProvider();
@@ -55,7 +59,7 @@ public class CreatABMD5
             file.Close();
             //把16个字节转换为 16进制 拼接成字符串 为了减小md5码的长度
             StringBuilder sb = new StringBuilder();
-            for(int i = 0; i < md5Info.Length; i++)
+            for (int i = 0; i < md5Info.Length; i++)
             {
                 sb.Append(md5Info[i].ToString("x2"));
             }
