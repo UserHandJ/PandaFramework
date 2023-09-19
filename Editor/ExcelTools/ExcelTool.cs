@@ -24,8 +24,9 @@ public class ExcelTool
     public static string DATA_CONTAINER_PATH = Application.dataPath + "/Scripts/ExcelData/Container/";
     /// <summary>
     /// 2进制数据存储位置路径
+    /// 这个必须和BinaryDataMgr里的读取路径一致
     /// </summary>
-    public static string DATA_BINARY_PATH = Application.streamingAssetsPath + "/Binary/";
+    public static string DATA_BINARY_PATH = Application.streamingAssetsPath + "/BinaryData/";
     /// <summary>
     /// Excel表中真正内容开始的行号
     /// </summary>
