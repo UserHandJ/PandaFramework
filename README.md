@@ -1,181 +1,94 @@
 # UPandaFramework
-Unity的前端框架
-## 目录结构介绍
----
-#### AssetBundleTools 
-**AB包管理工具**
-UPandaGF->AB包工具->Assetbudle Broswer
 
-#### ExcelTool 
-**Excel工具**
-1. 根据Excel配置的数据生成数据类和数据容器类
-2. 把Excel里的数据生成二进制文件放入StreamingAssets里，用BinaryDataMgr类得到相关数据
+Unity 的前端框架
 
-#### CreatDirectory 项目目录生成工具
+项目地址：https://gitee.com/he-jinxian/upanda-framework.git
 
-1. 3rd 第三方插件和资源目录
-2. ArtAssets 艺术资源目录
-3. Resources
-4. Scene
-5. StreamingAssets
-6. Scripts
-7. AssetBundle
+## 模块介绍
 
----
-### **Extend**代码扩展
+### 日志系统
 
----
+1. 对 `Debug` 进行了封装，可以剔除日志，避免运行过程中的字符串拼接造成的性能损耗。
+   - 启动日志 / 剔除日志：`UPandaGF -> 启动日志/剔除日志`
+2. 可配置日志输出到本地。
+3. 整合了 `LogView`，可以在项目出包后开启日志面板查看日志输出和调试信息。
 
-### **Manager**开发工具
+### 资源管理
 
----
+1. **AB包打包工具**
+   - 基于官方的 `AssetBundle Browser` 进行扩展，新增资源上传页签，创建资源对比文件进行热更新。
+   - 路径：`UPandaGF -> AB包工具 -> AssetBundle Browser`
 
-#### Singleton
-##### LazySingletonBase
-单例基类 懒汉模式
-##### EagerSingletonBase
-单例基类 饿汉模式
-##### LazyMonoSingletonBase
-继承MonoBehaviour的单例基类，懒汉模式
-##### EagerMonoSingletonBase
-继承MonoBehaviour的单例基类，饿汉模式
+2. **IAssetsLoader**
+   - AB包加载接口。
+   - 使用方式：
+     ```csharp
+     IAssetsLoader loader = UPGameRoot.Instance.GetAssetsLoader();
+     ```
+   - 直接用编辑器里的路径加载资源，开发过程中 `UPGameRoot` 的 Inspector 面板可以切换为 Editor 模式加载资源，打包时再切换为 AssetBundle 模式。
+   - AssetBundle支持本地加载、远程加载或者资源更新下载到本地后加载
 
+3. **ResourcesLoader**
+   - 封装 Unity 内置的 `Resources.Load` 方法，避免资源重复加载，增加引用计数和异步加载状态管理。
 
-#### PublicMono
-**公共Mono模块**
-1. 利用帧更新或定时更新处理逻辑
-2. 利用协同程序处理逻辑
-3. 可以统一执行管理帧更新或定时更新相关逻辑
+4. **StreamingAssetsLoadTool**
+   - `StreamingAssets` 路径下的资源加载工具，处理好了跨平台兼容性，提供多种加载方式。
 
-不继承MonoBehaviour的脚本也能利用该工具实现以上逻辑
+### 数据表
 
-```C#
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
-/// <summary>
-/// 使用方式
-/// </summary>
-public class HowUseMonoMgr
-{
-    /// <summary>
-    /// 调用该方法就可以让MyUpdate()方法在每帧调用
-    /// </summary>
-    public void EnableMyUpdate()
-    {
-        MonoMgr.Instance.AddUpdateListener(MyUpdate);
-    }
-    public void DisableMyUpdate()
-    {
-        MonoMgr.Instance.RemoveUpdateListener(MyUpdate);
-    }
+#### ExcelTool
 
-    private void MyUpdate()
-    {
-        Debug.Log("更新");
-    }
-    /// <summary>
-    /// 开启协程的方式
-    /// </summary>
-    public void StartMyIEnumerator()
-    {
-        MonoMgr.Instance.StartCoroutine(SelfIEnumerator());
-    }
+   - 根据 Excel 配置的数据生成数据类和数据容器类。
 
-    private IEnumerator SelfIEnumerator()
-    {
-        Debug.Log("开启协程");
-        yield return new WaitForSeconds(3f);
-        Debug.Log("协程结束");
-    }
-}
-
-```
-
-#### ObjPool 
-**对象池**
-
-对象池还需要优化，目前提供基础功能
-使用前对象需要做成预制体放进Resources里
-```C#
-//对象在Hierarchy中放回对象池后是否按层级结构存放
-//建议打包的时候设为false，可以节约一点性能
-//默认是true
-PoolMgr.isOpenLayout;
-
-PoolMgr.Instance.GetObj(string name)//可以得到对象。
-//name是在Resources里的路径，也被用作对象的标识，存的时候也必须是一样的
-PoolMgr.Instance.PushObj(string name, GameObject obj)//把对象放入对象池。
-```
+### 事件系统
 
 #### EventCenterModule
-**事件中心模块**
-示例场景：EventCenterUse
 
-监听、移除：
-```C#
-using UnityEngine;
+**事件中心**
 
-public class EnentCenterUse_AddListener : MonoBehaviour
-{
+- 监听、移除示例：
+  ```csharp
+  using UnityEngine;
 
-    private void OnEnable()
-    {
-        EventCenter.Instance.AddEventListener<EnentTest1>(TestEvent1);//事件注册
-        EventCenter.Instance.AddEventListener<EnentTest1>(TestEvent2);
-    }
+  public class EventCenterUse_AddListener : MonoBehaviour
+  {
+      private void OnEnable()
+      {
+          EventCenter.Instance.AddEventListener<EnentTest1>(TestEvent1); // 事件注册
+      }
 
-    private void OnDisable()
-    {
-        EventCenter.Instance.RemoveEventListener<EnentTest1>(TestEvent1);//事件注销
-    }
-    private void OnDestroy()
-    {
-        EventCenter.Instance.RemoveEventListener<EnentTest1>(TestEvent2);
-    }
+      private void OnDestroy()
+      {
+          EventCenter.Instance.RemoveEventListener<EnentTest1>(TestEvent1);
+      }
 
-    private void TestEvent1(EventArgBase arg0)
-    {
-        EnentTest1 arg = arg0 as EnentTest1;
-        PLoger.Log($"事件id:{arg.EventID} 参数：{arg.arg0} 事件触发1");
-    }
+      private void TestEvent1(EventArgBase arg0)
+      {
+          EnentTest1 arg = arg0 as EnentTest1;
+          PLoger.Log($"事件id:{arg.EventID} 参数：{arg.arg0} 事件触发1");
+      }
+  }
 
-    private void TestEvent2(EventArgBase arg0)
-    {
-        EnentTest1 arg = arg0 as EnentTest1;
-        PLoger.Log($"事件id:{arg.EventID} 参数：{arg.arg0} 事件触发2");
-    }
-}
+  public class EnentTest1 : EventArgBase // 声明事件对象
+  {
+      public override int EventID => typeof(EnentTest1).GetHashCode();
+      public string arg0 { get; private set; }//自定义参数
+      public EnentTest1(string arg)
+      {
+          arg0 = arg;
+      }
+  }
+  ```
 
-public class EnentTest1 : EventArgBase//声名事件
-{
-    public override int EventID => typeof(EnentTest1).GetHashCode();
-    public string arg0 { get;private set; }
-    public EnentTest1(string arg)
-    {
-        arg0 = arg;
-    }
-}
+- 触发示例：
+  ```csharp
+    EventCenter.Instance.EventTrigger(new EnentTest1("触发测试")); // 触发事件
+  ```
 
+## 贡献
 
+欢迎提交 Pull Request 或 Issue 来帮助改进框架。
 
-```
-触发示例：
-```C#
-using UnityEngine;
+## 许可证
 
-public class EnentCenterUse_Trigger : MonoBehaviour
-{
-    public float triggerInterval = 1f;
-    private float _nextPrintTime = 0;
-    private void Update()
-    {
-        if (Time.time >= _nextPrintTime)
-        {
-            _nextPrintTime = Time.time + triggerInterval;
-            EventCenter.Instance.EventTrigger(new EnentTest1($"触发测试 {_nextPrintTime}"));//触发事件
-        }
-    }
-}
-```
-
+本项目使用 MIT 许可证。

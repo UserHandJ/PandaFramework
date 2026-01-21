@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace UPandaGF
+namespace UPandaGF.RunTime.TaskSystem
 {
     public enum TaskGroupType
     {
@@ -55,7 +55,7 @@ namespace UPandaGF
 
         public void CompleteTask()
         {
-            PLoger.Log("Complete");
+            PLogger.Log("Complete");
         }
 
     }

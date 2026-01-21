@@ -31,9 +31,10 @@ namespace UPandaGF
                     break;
             }
             EditorGUILayout.Space(10);
-            if(!EditorApplication.isPlaying)
+#if OPEN_PLOG
+            if (!EditorApplication.isPlaying)
             {
-                ShowArg("EnableDebugModel", "启动调试模式");
+                ShowArg("EnableDebugModel", "启动日志窗口");
                 if (component.EnableDebugModel)
                 {
                     if (component.reporter == null)
@@ -52,6 +53,7 @@ namespace UPandaGF
                     }
                 }
             }
+#endif
             serializedObject.ApplyModifiedProperties();
         }
 
@@ -61,21 +63,22 @@ namespace UPandaGF
             EditorGUILayout.HelpBox("把资源添加到AssetBundle后，需要更新资源关联数据才能加载", MessageType.Info);
             if (GUILayout.Button("更新资源关联数据"))
             {
-                AssetBundleBuildTab.GenerateAssetBundleInfo();
+                //AssetBundleBuildTab.GenerateAssetBundleInfo();
             }
             EditorGUILayout.Space();
         }
 
         private void AssetbundlesEditorGUI()
         {
-            ShowArg("aBRootPath", "根路径");
-            if (component.aBRootPath == ABRootPath.persistentDataPath)
-            {
+            ShowArg("enableAssetUpdate", "启动资源更新");
+            if (component.enableAssetUpdate)
                 ShowArg("assetUpdataConfig", "资源更新配置");
-                EditorGUILayout.Space();
-            }
+            EditorGUILayout.Space();
+            EditorGUILayout.Space();
+            ShowArg("reomoteURL", "远程加载URL");   
             ShowArg("LoadAssetPath", "资源路径");
             ShowArg("MainName", "主包名");
+            ShowArg("MainPackageLoadPath", "主包加载路径");
         }
 
 

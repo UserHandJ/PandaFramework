@@ -2,8 +2,17 @@ using System.Collections.Generic;
 
 namespace UPandaGF
 {
+    /// <summary>
+    /// AB包加载路径
+    /// </summary>
+    public enum ABLoadPath
+    {
+        StreamingAssetsPath,
+        PersistentDataPath,
+        RemotePath
+    }
     ///// <summary>
-    ///// AB资源关联信息
+    ///// AB资源引用信息
     /// </summary>
     [System.Serializable]
     public class ABSourcesRelated
@@ -15,7 +24,7 @@ namespace UPandaGF
     }
 
     /// <summary>
-    /// AB关联数据
+    /// AB引用数据
     /// </summary>
     [System.Serializable]
     public class ABRelatedArg
@@ -28,10 +37,16 @@ namespace UPandaGF
         /// 资源名
         /// </summary>
         public string sourceName;
-        public ABRelatedArg(string arg0, string arg1)
+        /// <summary>
+        /// 资源加载根路径
+        /// </summary>
+        public ABLoadPath loodPath;
+       
+        public ABRelatedArg(string arg0, string arg1, ABLoadPath arg2)
         {
             packageName = arg0;
             sourceName = arg1;
+            loodPath = arg2;
         }
     }
 }

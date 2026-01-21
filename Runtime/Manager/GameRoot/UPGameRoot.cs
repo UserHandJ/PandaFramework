@@ -4,6 +4,7 @@ using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using UnityEngine;
 using UnityEngine.Events;
+using System.Threading.Tasks;
 
 namespace UPandaGF
 {
@@ -16,18 +17,10 @@ namespace UPandaGF
         Assetbundles,//使用AssetBundle加载资源
     }
 
-    /// <summary>
-    /// AB包根路径
-    /// </summary>
-    public enum ABRootPath
-    {
-        streamingAssetsPath,
-        persistentDataPath
-    }
+
 
     public class GFLoadedEvent : EventArgBase
     {
-        public override int EventID => typeof(GFLoadedEvent).GetHashCode();
 
     }
 
@@ -37,33 +30,33 @@ namespace UPandaGF
         #region Component
         private DebugerInit debugerInit;//日志系统
         private ABUpdataMgr abUpdataMgr;//资源更新组件
-        private SourcesLoad sourcesLoadMgr;//资源加载组件
+        private AssetsLoader sourcesLoadMgr;//资源加载组件
         private BinaryDataMgrInit binaryDataMgr;//数据管理
+        private UIManager UIManager;//UI
         #endregion
 
         #region Config
         //[Header("资源加载方式")]
         public AssetLoaddingMethod method;
-        //[Header("资源加载根路径")]
-        public ABRootPath aBRootPath;
-        //[Header("资源路径")]
+        public bool enableAssetUpdate;//启动资源更新
+        //[Header("资源相对路径")]
         public string LoadAssetPath = "AssetBundles/StandaloneWindows/";
         //[Header("主包名")]
         public string MainName = "StandaloneWindows";
-
+        public ABLoadPath MainPackageLoadPath = ABLoadPath.StreamingAssetsPath;//主包加载方式
         /// <summary>
         /// 资源远端更新配置
         /// </summary>
         public ABUpdataMgrArg assetUpdataConfig;
 
+        /// <summary>
+        /// 远程加载地址
+        /// </summary>
+        public string reomoteURL = "http://127.0.0.1:8090/";
+
         public bool EnableDebugModel = false;
-        public Reporter reporter;
-
-
-        //初始加载场景
-        //public string firstScenePath = "Assets/Scenes/InitScene.unity";
-
         #endregion
+        public Reporter reporter;
 
         private void Reset()
         {
@@ -72,13 +65,6 @@ namespace UPandaGF
         protected override void OnAwake()
         {
             SetComponent();
-            if (method == AssetLoaddingMethod.Editor)
-            {
-                aBRootPath = ABRootPath.streamingAssetsPath;
-#if !UNITY_EDITOR
-                method = AssetLoaddingMethod.Assetbundles;
-#endif
-            }
             StartCoroutine(Init());
         }
 
@@ -86,29 +72,38 @@ namespace UPandaGF
         {
             yield return StartCoroutine(debugerInit.Init());
             binaryDataMgr.Init();
-            abUpdataMgr.Init(assetUpdataConfig, LoadAssetPath);
+
             ABLoadMgr abLoadMgr = ABLoadMgr.Instance;
-            abLoadMgr.MainName = MainName;
-            switch (aBRootPath)
+            abLoadMgr.remoteURL = reomoteURL;
+            if (method == AssetLoaddingMethod.Assetbundles)
             {
-                case ABRootPath.streamingAssetsPath:
-                    abLoadMgr.PathUrl = Application.streamingAssetsPath + "/" + LoadAssetPath;
-                    break;
-                case ABRootPath.persistentDataPath:
-                    abLoadMgr.PathUrl = Application.persistentDataPath + "/" + LoadAssetPath;
+                abUpdataMgr.Init(assetUpdataConfig, LoadAssetPath);
+                if (enableAssetUpdate)
+                {
                     yield return StartCoroutine(abUpdataMgr.StartUpadateAssets());
-                    break;
+                }
+                Task abLoadMgrInitTask = abLoadMgr.Init(LoadAssetPath, MainName, MainPackageLoadPath);
+                while (!abLoadMgrInitTask.IsCompleted)
+                {
+                    yield return null;
+                }
             }
-            sourcesLoadMgr.Init(method, abLoadMgr);
-            OnSourceInited();
+            Task sourcesLoadMgrTask = sourcesLoadMgr.Init(method, abLoadMgr);
+            while (!sourcesLoadMgrTask.IsCompleted)
+            {
+                yield return null;
+            }
+            OnInited();
         }
+
 
         private void SetComponent()
         {
             if (debugerInit == null) debugerInit = InitComponent<DebugerInit>();
             if (abUpdataMgr == null) abUpdataMgr = InitComponent<ABUpdataMgr>();
-            if (sourcesLoadMgr == null) sourcesLoadMgr = InitComponent<SourcesLoad>();
+            if (sourcesLoadMgr == null) sourcesLoadMgr = InitComponent<AssetsLoader>();
             if (binaryDataMgr == null) binaryDataMgr = InitComponent<BinaryDataMgrInit>();
+            if(UIManager == null) UIManager = InitComponent<UIManager>();
         }
 
         private T InitComponent<T>() where T : Component
@@ -123,7 +118,7 @@ namespace UPandaGF
             return component;
         }
 
-        private void OnSourceInited()
+        private void OnInited()
         {
             //PLoger.Log_red($"GameRoot Initialization completed!");
             //PLoger.Log_green($"GameRoot Initialization completed!");
@@ -131,45 +126,23 @@ namespace UPandaGF
             //PLoger.Log_yellow($"GameRoot Initialization completed!");
             //PLoger.Log_cyan($"GameRoot Initialization completed!");
             //PLoger.LogFormat("<color=yellow>{0}</color>", "GameRoot Initialization completed!");
-            PLoger.Log_white($"GameRoot Initialization completed!");
+            PLogger.Log_white($"GameRoot Initialization completed!");
             EventCenter.Instance.EventTrigger(new GFLoadedEvent());
         }
 
         /// <summary>
-        /// 获取StreamingAssets的路径（适用于所有平台）
+        /// 获取资源加载接口
         /// </summary>
-        /// <param name="fileName"></param>
         /// <returns></returns>
-        public static string GetStreamingAssetsPath()
-        {
-            string path = "";
-#if UNITY_EDITOR
-            path = Application.streamingAssetsPath;
-#else
-            // 判断平台类型，获取对应的路径
-            if (Application.platform == RuntimePlatform.Android)
-            {
-                // Android平台上，StreamingAssets路径是通过jar包访问的
-                path = "jar:file://" + Application.dataPath + "!/assets";
-            }
-            else if (Application.platform == RuntimePlatform.IPhonePlayer)
-            {
-                // iOS平台，StreamingAssets在应用包的根目录
-                path = "file://" + Path.Combine(Application.dataPath, "Raw");
-            }
-            else
-            {
-                // 其他平台（Windows, Mac, Linux, WebGL等），可以直接使用Application.streamingAssetsPath
-                path = Application.streamingAssetsPath;
-            }
-#endif
-            return path;
-        }
-
-
-        public ISourcesLoad GetSourcesLoadComponent()
+        public IAssetsLoader GetAssetsLoader()
         {
             return sourcesLoadMgr;
+        }
+
+        protected override void OnDestroy()
+        {
+            base.OnDestroy();
+            PLogger.LogWarning("UPGameRoot Destory!!!");
         }
     }
 }

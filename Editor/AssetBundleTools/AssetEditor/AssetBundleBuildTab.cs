@@ -45,7 +45,7 @@ namespace AssetBundleBrowser
         }
 
         private AssetBundleInspectTab m_InspectTab;
-        private AssetBundleBrowserMain m_Main;
+        private static AssetBundleBrowserMain m_Main;
 
         [SerializeField]
         private BuildTabData m_UserData;
@@ -70,12 +70,11 @@ namespace AssetBundleBrowser
         int[] m_CompressionValues = { 0, 1, 2 };
 
 
-        internal AssetBundleBuildTab(AssetBundleBrowserMain arg)
+        internal AssetBundleBuildTab()
         {
             m_AdvancedSettings = false;
             m_UserData = new BuildTabData();
-            m_Main = arg;
-            m_Main.m_BuildTabData = m_UserData;
+
             m_UserData.m_OnToggles = new List<string>();
             m_UserData.m_UseDefaultPath = true;
         }
@@ -95,12 +94,13 @@ namespace AssetBundleBrowser
         }
         internal void OnEnable(EditorWindow parent)
         {
-            m_InspectTab = (parent as AssetBundleBrowserMain).m_InspectTab;
+            m_Main = (parent as AssetBundleBrowserMain);
+            m_InspectTab = m_Main.m_InspectTab;
             //LoadData...
             var dataPath = System.IO.Path.GetFullPath(".");
             dataPath = dataPath.Replace("\\", "/");
             dataPath += "/Library/AssetBundleBrowserBuild.dat";
-            Debug.LogWarning("AssetBundleBrowser:" + dataPath);
+            //Debug.LogWarning("AssetBundleBrowser:" + dataPath);
 
             if (File.Exists(dataPath))
             {
@@ -110,9 +110,6 @@ namespace AssetBundleBrowser
                 if (data != null)
                 {
                     m_UserData = data;
-                    if (m_Main is null) Debug.LogError("m_Main is null");
-                    if (m_Main.m_BuildTabData is null) Debug.LogError("m_Main.m_BuildTabData is null");
-                    if (m_UserData is null) Debug.LogError("m_UserData is null");
                     m_Main.m_BuildTabData = m_UserData;
                 }
                 file.Close();
@@ -296,14 +293,14 @@ namespace AssetBundleBrowser
             EditorGUILayout.Space();
             if (GUILayout.Button("Build"))
             {
-                GenerateAssetBundleInfo();
-                EditorApplication.delayCall += ExecuteBuild;
+                AssetBundleClassificationWindow.ShowWindow();
+                //EditorApplication.delayCall += ExecuteBuild;
             }
             GUILayout.EndVertical();
             EditorGUILayout.EndScrollView();
         }
 
-        private void ExecuteBuild()
+        public void ExecuteBuild()
         {
             if (AssetBundleModel.Model.DataSource.CanSpecifyBuildOutputDirectory)
             {
@@ -380,80 +377,6 @@ namespace AssetBundleBrowser
 
         }
 
-        #region 资源关联数据
-        /// <summary>
-        /// 资源数据存储的位置
-        /// </summary>
-        private static string assetRefSavePath = "/Data/";
-        /// <summary>
-        /// 资源名
-        /// </summary>
-        private static string assetRefName = "assetData";
-
-        /// <summary>
-        /// 资源数据存储文件后缀
-        /// </summary>
-        private static string assetRefextension = ".assetref";
-        /// <summary>
-        /// 遍历项目目录，生成AB资源关联数据
-        /// </summary>
-        public static void GenerateAssetBundleInfo()
-        {
-            // 获取所有的资源路径
-            string[] allAssetPaths = AssetDatabase.GetAllAssetPaths();
-            ABSourcesRelated aBSourcesRef = new ABSourcesRelated();
-            foreach (string assetPath in allAssetPaths)
-            {
-                // 排除非资源文件
-                if (assetPath.StartsWith("Assets/") && !assetPath.StartsWith("Assets/Plugins") && !assetPath.EndsWith(".cs"))
-                {
-                    // 获取该资源的 AssetBundle 名字
-                    string assetBundleName = AssetDatabase.GetImplicitAssetBundleName(assetPath);
-
-                    // 如果资源没有被分配到 AssetBundle，则跳过
-                    if (string.IsNullOrEmpty(assetBundleName)) continue;
-
-                    // 获取资源的名字
-                    string assetName = Path.GetFileNameWithoutExtension(assetPath);
-
-                    // 创建一个 AssetInfo 对象，并添加到列表中
-                    ABRelatedArg assetInfo = new ABRelatedArg(assetBundleName, assetName);
-                    aBSourcesRef.sourcesDic.Add(assetPath, assetInfo);
-                }
-            }
-
-            Save(aBSourcesRef);
-            AssetDatabase.Refresh();
-        }
-
-        public static void Save(object obj)
-        {
-            string SAVE_PATH = Application.streamingAssetsPath + assetRefSavePath;
-            //先判断路径文件夹有没有
-            if (!Directory.Exists(SAVE_PATH))
-            {
-                Directory.CreateDirectory(SAVE_PATH);
-            }
-
-            //可以对数据再做些操作，比如进行加密
-            using (MemoryStream ms = new MemoryStream())
-            {
-                BinaryFormatter bf = new BinaryFormatter();
-                bf.Serialize(ms, obj);
-
-                byte[] bytes = ms.GetBuffer();
-                //ToDo:..在这里可以做一些加密的工作
-                string AESKEY = "111a222aaabbbccc";
-                string AESIV = "111b222aaabbbccc";
-                bytes = AESEncryption.AESEncrypt(bytes, AESKEY, AESIV);
-
-                File.WriteAllBytes(SAVE_PATH + assetRefName + assetRefextension, bytes);
-                ms.Close();
-            }
-            Debug.Log("资源关联数据已保存至：" + SAVE_PATH + assetRefName + assetRefextension);
-
-        }
-        #endregion
 
 
         private static void DirectoryCopy(string sourceDirName, string destDirName)

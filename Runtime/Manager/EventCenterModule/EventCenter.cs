@@ -1,17 +1,13 @@
-using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
-//using Unity.VisualScripting;
-using UnityEngine;
 using UnityEngine.Events;
 
 namespace UPandaGF
 {
+    public abstract class EventArgBase { }
     /// <summary>
     /// 事件参数
     /// </summary>
-    public class PD_EventInfo<T> where T : EventArgBase
+    internal class PD_EventInfo<T> where T : EventArgBase
     {
         private UnityAction<T> actions;
         private HashSet<int> actionIDs; // 使用 HashSet 更高效地避免重复
@@ -34,7 +30,7 @@ namespace UPandaGF
                 }
                 else
                 {
-                    PLoger.LogWarning($"id：{id} 的方法试图重复加入监听!");
+                    PLogger.LogWarning($"id：{id} 的方法试图重复加入监听!");
                 }
             }
 
