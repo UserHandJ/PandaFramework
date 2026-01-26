@@ -8,18 +8,22 @@ using System.Runtime.Serialization.Formatters.Binary;
 using UnityEngine.Events;
 using System.Threading.Tasks;
 using AssetBundleBrowser;
+using UnityEditor.Build;
+using UnityEditor.Build.Reporting;
+using System;
+using UnityEditor.Compilation;
+using System.Threading;
 
 /// <summary>
 /// AssetBundle分类窗口
 /// </summary>
 public class AssetBundleClassificationWindow : EditorWindow
 {
-    //[MenuItem("UPandaGF/Tools/AssetBundeCheck")]
     public static void ShowWindow()
     {
         AssetBundleClassificationWindow window = GetWindow<AssetBundleClassificationWindow>();
         window.titleContent = new GUIContent("打包窗口");
-        window.minSize = new Vector2(500, 400);
+        window.position = new Rect(100, 100, 550, 600);//设置初始位置和大小
         window.Show();
     }
 
@@ -38,11 +42,17 @@ public class AssetBundleClassificationWindow : EditorWindow
     // 列宽
     private float nameColumnWidth = 150f;
     private float sizeColumnWidth = 100f;
-    private float dependenciesColumnWidth = 150f;
+    private float dependenciesColumnWidth = 100f;
+    private float pathColumnWidth = 200f;
     private float lastClickTime = 0;
     private float doubleClickTime = 0.3f;
     private int sortColumn = 0; // 0: 名称, 1: 大小, 2: 依赖数
     private bool sortAscending = true;
+
+    // 添加构建状态变量
+    private bool isBuildingSingle = false;
+    private string currentBuildingBundle = "";
+    private float buildProgress = 0f;
 
     private class AssetBundleInfo
     {
@@ -60,6 +70,23 @@ public class AssetBundleClassificationWindow : EditorWindow
     {
         await GetABSourcesRelated();
         RefreshAssetBundleList();
+
+        // 监听Editor更新，用于显示构建进度
+        EditorApplication.update += OnEditorUpdate;
+    }
+
+    private void OnDisable()
+    {
+        EditorApplication.update -= OnEditorUpdate;
+    }
+
+    private void OnEditorUpdate()
+    {
+        // 更新构建进度显示
+        if (isBuildingSingle)
+        {
+            Repaint();
+        }
     }
 
     //private void OnDestroy()
@@ -68,6 +95,12 @@ public class AssetBundleClassificationWindow : EditorWindow
 
     private void OnGUI()
     {
+        // 显示构建进度
+        if (isBuildingSingle)
+        {
+            DrawBuildProgress();
+        }
+
         DrawToolbar();
         DrawHeaders();
         DrawAssetBundleList();
@@ -77,6 +110,14 @@ public class AssetBundleClassificationWindow : EditorWindow
             DrawDetailsPanel();
         }
     }
+
+    // 显示构建进度
+    private void DrawBuildProgress()
+    {
+        Rect progressRect = new Rect(0, 0, position.width, 20);
+        EditorGUI.ProgressBar(progressRect, buildProgress, $"正在构建: {currentBuildingBundle}");
+    }
+
     // 创建纯色纹理
     private Texture2D MakeTex(int width, int height, Color col)
     {
@@ -88,6 +129,8 @@ public class AssetBundleClassificationWindow : EditorWindow
         result.Apply();
         return result;
     }
+
+
     private void DrawToolbar()
     {
         GUILayout.BeginHorizontal(EditorStyles.toolbar);
@@ -105,7 +148,13 @@ public class AssetBundleClassificationWindow : EditorWindow
         }
 
         GUILayout.FlexibleSpace();
-        if (GUILayout.Button("构建 AssetBundle", EditorStyles.toolbarButton, GUILayout.Width(120)))
+        if (GUILayout.Button("更新配置", EditorStyles.toolbarButton, GUILayout.Width(120)))
+        {
+            GenerateAssetBundleInfo();
+        }
+
+        //if (GUILayout.Button("构建 AssetBundle",  EditorStyles.toolbarButton, GUILayout.Width(120)))
+        if (EditorGUIExtensions.ColorButton("Build All", Color.green, EditorStyles.toolbarButton, GUILayout.Width(120)))
         {
             GenerateAssetBundleInfo();
             EditorApplication.delayCall += AssetBundleBrowserMain.instance.m_BuildTab.ExecuteBuild;
@@ -122,21 +171,28 @@ public class AssetBundleClassificationWindow : EditorWindow
         {
             SortAssetBundles(0);
         }
-
-        // 大小列
-        if (DrawSortableHeader("大小", 1, sizeColumnWidth))
+        // 依赖列
+        if (DrawSortableHeader("依赖数量", 1, dependenciesColumnWidth))
         {
             SortAssetBundles(1);
         }
 
-        // 依赖列
-        if (DrawSortableHeader("依赖数量", 2, dependenciesColumnWidth))
+        // 大小列
+        if (DrawSortableHeader("大小", 2, sizeColumnWidth))
         {
             SortAssetBundles(2);
         }
 
         // 路径列
-        GUILayout.Label("加载方式", EditorStyles.toolbarButton, GUILayout.MinWidth(200));
+        if (GUILayout.Button(new GUIContent("加载配置"), EditorStyles.toolbarButton,
+            GUILayout.Width(pathColumnWidth), GUILayout.MinWidth(pathColumnWidth)))
+        {
+            EditorUtility.DisplayDialog("提示",
+                 $"SreamingAssets : 资源从SreamingAssets路径加载.\n\n" +
+                 $"PersistentDataPath : 资源从PersistentDataPath路径加载，该资源需要先下载到本地，主要配合热更新使用.\n\n" +
+                 $"RemotePath : 资源直接从远程路径加载", 
+                 "确定");
+        }
 
         GUILayout.EndHorizontal();
     }
@@ -154,7 +210,7 @@ public class AssetBundleClassificationWindow : EditorWindow
             GUILayout.Width(width), GUILayout.MinWidth(width));
     }
 
-    #region 资源关联数据
+    #region 资源引用数据
     /// <summary>
     /// 资源数据存储的位置
     /// </summary>
@@ -224,7 +280,7 @@ public class AssetBundleClassificationWindow : EditorWindow
             File.WriteAllBytes(SAVE_PATH + assetRefName + assetRefextension, bytes);
             ms.Close();
         }
-        Debug.Log("资源关联数据已保存至：" + SAVE_PATH + assetRefName + assetRefextension);
+        Debug.Log("资源数据已保存至：" + SAVE_PATH + assetRefName + assetRefextension);
 
     }
 
@@ -255,7 +311,7 @@ public class AssetBundleClassificationWindow : EditorWindow
             if (!sourcesDic.ContainsKey(item.packageName))
             {
                 sourcesDic.Add(item.packageName, item.loodPath);
-                Debug.Log($"{item.packageName}:{item.loodPath}");
+                //Debug.Log($"{item.packageName}:{item.loodPath}");
             }
         }
     }
@@ -340,37 +396,55 @@ public class AssetBundleClassificationWindow : EditorWindow
         // 交替行背景色
         if (index % 2 == 0)
         {
-            GUI.backgroundColor = new Color(0.9f, 0.9f, 0.9f, 0.5f);
+            GUI.backgroundColor = new Color(0, 0, 0, 0.8f);
         }
-
-        GUILayout.BeginHorizontal(EditorStyles.helpBox);
-        GUI.backgroundColor = originalColor;
-
         // 选中状态
         bool isSelected = selectedBundle == bundleInfo;
         if (isSelected)
         {
-            GUI.backgroundColor = new Color(0.3f, 0.5f, 0.9f, 0.3f);
+            GUI.backgroundColor = new Color(0f, 1f, 1f, 1f);
         }
+        GUILayout.BeginHorizontal(EditorStyles.helpBox);
+        GUI.backgroundColor = originalColor;
 
         // 名称
-        if (GUILayout.Button(bundleInfo.name, GetRowStyle(),
-            GUILayout.Width(nameColumnWidth), GUILayout.MinWidth(nameColumnWidth)))
-        {
-            HandleBundleClick(bundleInfo);
-        }
+        Rect nameRect = GUILayoutUtility.GetRect(
+            new GUIContent(bundleInfo.name),
+            GetRowStyle(),
+            GUILayout.Width(nameColumnWidth),
+            GUILayout.MinWidth(nameColumnWidth)
+        );
 
-        // 大小
-        GUILayout.Label(FormatFileSize(bundleInfo.size), GetRowStyle(),
-            GUILayout.Width(sizeColumnWidth), GUILayout.MinWidth(sizeColumnWidth));
+        if (GUI.Button(nameRect, bundleInfo.name, GetRowStyle()))
+        {
+            if (Event.current.button == 0) // 左键
+            {
+                HandleBundleClick(bundleInfo);
+            }
+            else if (Event.current.button == 1)
+            {
+                //Debug.Log("选中");
+                selectedBundle = bundleInfo;
+                showDetails = true;
+
+                // 显示右键菜单
+                ShowNameContextMenu(bundleInfo);
+            }
+        }
 
         // 依赖数量
         GUILayout.Label(bundleInfo.dependencies.Count.ToString(), GetRowStyle(),
             GUILayout.Width(dependenciesColumnWidth), GUILayout.MinWidth(dependenciesColumnWidth));
 
+        // 大小
+        GUILayout.Label(FormatFileSize(bundleInfo.size), GetRowStyle(),
+            GUILayout.Width(sizeColumnWidth), GUILayout.MinWidth(sizeColumnWidth));
+
         // 路径
         //GUILayout.Label(bundleInfo.loadPath.ToString(), GetRowStyle(), GUILayout.MinWidth(200));
-        bundleInfo.loadPath = (ABLoadPath)EditorGUILayout.EnumPopup(bundleInfo.loadPath, GUILayout.MinWidth(200));
+        float lableW = pathColumnWidth - 40;
+        lableW = Mathf.Clamp(lableW, 20, pathColumnWidth - 40);
+        bundleInfo.loadPath = (ABLoadPath)EditorGUILayout.EnumPopup(bundleInfo.loadPath, GUILayout.Width(lableW), GUILayout.MinWidth(lableW));
         sourcesDic[bundleInfo.name] = bundleInfo.loadPath;
         GUILayout.FlexibleSpace();
 
@@ -394,7 +468,7 @@ public class AssetBundleClassificationWindow : EditorWindow
         if (selectedBundle == bundleInfo && (currentTime - lastClickTime) < doubleClickTime)
         {
             // 双击 - 在Project窗口中定位
-            Object obj = AssetDatabase.LoadAssetAtPath<Object>(bundleInfo.path);
+            UnityEngine.Object obj = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(bundleInfo.path);
             if (obj != null)
             {
                 EditorUtility.FocusProjectWindow();
@@ -411,19 +485,18 @@ public class AssetBundleClassificationWindow : EditorWindow
 
         lastClickTime = currentTime;
     }
-
+    private Vector2 detailsscrollPosition;
     private void DrawDetailsPanel()
     {
         GUILayout.Space(5);
         EditorGUILayout.LabelField("详细信息", EditorStyles.boldLabel);
-
         GUILayout.BeginVertical(EditorStyles.helpBox);
-
+        detailsscrollPosition = GUILayout.BeginScrollView(detailsscrollPosition, GUILayout.Height(150));
         // 基本信息
         EditorGUILayout.LabelField("名称:", selectedBundle.name);
         EditorGUILayout.LabelField("大小:", FormatFileSize(selectedBundle.size));
-        EditorGUILayout.LabelField("路径:", selectedBundle.path);
         EditorGUILayout.LabelField("加载方式:", selectedBundle.loadPath.ToString());
+        EditorGUILayout.LabelField("路径:", selectedBundle.path);
 
         if (selectedBundle.isVariant)
         {
@@ -444,7 +517,7 @@ public class AssetBundleClassificationWindow : EditorWindow
 
                 if (GUILayout.Button("定位", GUILayout.Width(40)))
                 {
-                    Object obj = AssetDatabase.LoadAssetAtPath<Object>(asset);
+                    UnityEngine.Object obj = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(asset);
                     if (obj != null)
                     {
                         EditorUtility.FocusProjectWindow();
@@ -486,7 +559,7 @@ public class AssetBundleClassificationWindow : EditorWindow
         {
             EditorGUILayout.LabelField("无依赖");
         }
-
+        GUILayout.EndScrollView();
         GUILayout.EndVertical();
     }
 
@@ -546,12 +619,24 @@ public class AssetBundleClassificationWindow : EditorWindow
 
     private string GetBuildPathForBundle(string bundleName)
     {
+        AssetBundleBrowserMain assetBundleBrowserMain = AssetBundleBrowserMain.instance;
+        if (assetBundleBrowserMain == null) return "";
+
+        string m_OutputPath = assetBundleBrowserMain.m_BuildTabData.m_OutputPath;
+        if (string.IsNullOrEmpty(m_OutputPath)) return "";
+
+        string result = "AssetBundles/";
+        int startIndex = m_OutputPath.IndexOf("AssetBundles/");
+        if (startIndex != -1)
+        {
+            result = m_OutputPath.Substring(startIndex);
+        }
         // 这里需要根据你的构建输出路径进行调整
         string[] possiblePaths =
         {
-            Path.Combine(Application.streamingAssetsPath, bundleName),
-            Path.Combine(Application.dataPath, "../AssetBundles", bundleName),
-            Path.Combine(System.Environment.CurrentDirectory, "AssetBundles", bundleName)
+            $"{Application.dataPath}/{result}/{bundleName}",
+            $"{Application.streamingAssetsPath}/{result}/{bundleName}",
+            $"{System.Environment.CurrentDirectory}/{result}/{bundleName}"
         };
 
         foreach (string path in possiblePaths)
@@ -593,5 +678,397 @@ public class AssetBundleClassificationWindow : EditorWindow
         {
             return $"{(bytes / (1024.0 * 1024.0)):0.0} MB";
         }
+    }
+
+    //右键菜单方法
+    private void ShowNameContextMenu(AssetBundleInfo bundleInfo)
+    {
+        GenericMenu menu = new GenericMenu();
+
+        // Build菜单项
+        menu.AddItem(new GUIContent("Build/Build This Bundle"), false, () =>
+        {
+            BuildSingleAssetBundle(bundleInfo.name);
+        });
+
+        // 2. 构建选中的AssetBundle及其依赖
+        menu.AddItem(new GUIContent("Build/Build This Bundle + Dependencies"), false, () =>
+        {
+            BuildAssetBundleWithDependencies(bundleInfo.name);
+        });
+
+        menu.AddSeparator("");
+
+        //定位到文件/在Project中高亮
+        if (bundleInfo.assets != null && bundleInfo.assets.Count > 0)
+        {
+            menu.AddItem(new GUIContent("在Project中高亮"), false, () =>
+            {
+                if (bundleInfo.assets.Count > 0)
+                {
+                    // 高亮第一个资源
+                    string firstAsset = bundleInfo.assets[0];
+                    if (firstAsset != null)
+                    {
+                        UnityEngine.Object obj = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(firstAsset);
+                        if (obj != null)
+                        {
+                            EditorUtility.FocusProjectWindow();
+                            Selection.activeObject = obj;
+                            EditorGUIUtility.PingObject(obj);
+                        }
+                    }
+                }
+            });
+        }
+        else
+        {
+            menu.AddDisabledItem(new GUIContent("在Project中高亮(无资源)"));
+        }
+
+        //复制名称
+        menu.AddItem(new GUIContent("复制包名"), false, () =>
+        {
+            EditorGUIUtility.systemCopyBuffer = bundleInfo.name;
+        });
+
+        //在资源管理器中显示(如果已构建)
+        if (bundleInfo.path != "未构建" && !string.IsNullOrEmpty(bundleInfo.path))
+        {
+            menu.AddItem(new GUIContent("在资源管理器中显示"), false, () =>
+            {
+                if (File.Exists(bundleInfo.path))
+                {
+                    // 在文件管理器中高亮文件
+                    EditorUtility.RevealInFinder(bundleInfo.path);
+                }
+                else
+                {
+                    Debug.LogWarning($"文件不存在: {bundleInfo.path}");
+                }
+            });
+        }
+        else
+        {
+            menu.AddDisabledItem(new GUIContent("在资源管理器中显示(未构建)"));
+        }
+
+        menu.AddSeparator("");
+
+        //复制路径
+        menu.AddItem(new GUIContent("复制AssetBundle路径"), false, () =>
+        {
+            EditorGUIUtility.systemCopyBuffer = bundleInfo.path;
+        });
+
+        //复制加载路径枚举
+        menu.AddItem(new GUIContent($"复制加载路径:{bundleInfo.loadPath}"), false, () =>
+        {
+            EditorGUIUtility.systemCopyBuffer = $"ABLoadPath.{bundleInfo.loadPath}";
+        });
+
+        menu.ShowAsContext();
+    }
+
+    // Build子菜单
+    private void ShowBuildSubMenu(AssetBundleInfo bundleInfo)
+    {
+        GenericMenu subMenu = new GenericMenu();
+
+        // 1. 只构建选中的AssetBundle
+        subMenu.AddItem(new GUIContent("Build This Bundle"), false, () =>
+        {
+            BuildSingleAssetBundle(bundleInfo.name);
+        });
+
+        // 2. 构建选中的AssetBundle及其依赖
+        subMenu.AddItem(new GUIContent("Build This Bundle + Dependencies"), false, () =>
+        {
+            BuildAssetBundleWithDependencies(bundleInfo.name);
+        });
+
+        // 3. 构建所有AssetBundle
+        subMenu.AddItem(new GUIContent("Build All"), false, () =>
+        {
+            GenerateAssetBundleInfo();
+            if (AssetBundleBrowserMain.instance != null)
+            {
+                EditorApplication.delayCall += AssetBundleBrowserMain.instance.m_BuildTab.ExecuteBuild;
+            }
+        });
+
+        subMenu.ShowAsContext();
+    }
+
+    // 构建单个AssetBundle
+    private async void BuildSingleAssetBundle(string bundleName)
+    {
+        if (isBuildingSingle)
+        {
+            Debug.LogWarning("正在构建中，请等待完成...");
+            return;
+        }
+
+        //if (!EditorUtility.DisplayDialog("构建确认",
+        //    $"注意：这将只构建指定的AssetBundle:{bundleName}，不包括其依赖。", "确定", "取消"))
+        //{
+        //    return;
+        //}
+
+        try
+        {
+            isBuildingSingle = true;
+            currentBuildingBundle = bundleName;
+            buildProgress = 0f;
+
+            Debug.Log($"开始构建单个AssetBundle: {bundleName}");
+
+            // 1. 保存资源关联数据
+            GenerateAssetBundleInfo();
+
+            // 2. 获取构建配置
+            AssetBundleBuildTab buildTab = AssetBundleBrowserMain.instance?.m_BuildTab;
+            if (buildTab == null)
+            {
+                Debug.LogError("无法获取AssetBundleBrowser的BuildTab");
+                return;
+            }
+
+            // 3. 获取构建参数
+            BuildTarget buildTarget = (BuildTarget)buildTab.M_UserData.m_BuildTarget;
+            BuildAssetBundleOptions buildOptions = buildTab.GetOpt();
+
+            // 4. 创建临时构建目标目录
+            string outputPath = AssetBundleBrowserMain.instance.m_BuildTabData.m_OutputPath;
+            if (string.IsNullOrEmpty(outputPath))
+            {
+                outputPath = "AssetBundles/" + buildTarget;
+            }
+
+            // 确保输出目录存在
+            Directory.CreateDirectory(outputPath);
+
+            // 5. 获取要构建的AssetBundle的所有资源路径
+            string[] assetPaths = AssetDatabase.GetAssetPathsFromAssetBundle(bundleName);
+            if (assetPaths.Length == 0)
+            {
+                Debug.LogWarning($"没有找到属于AssetBundle '{bundleName}' 的资源");
+                return;
+            }
+
+            // 6. 创建AssetBundle构建配置
+            var builds = new List<AssetBundleBuild>();
+            var build = new AssetBundleBuild
+            {
+                assetBundleName = bundleName,
+                // 添加主资源
+                assetNames = assetPaths
+            };
+            builds.Add(build);
+
+            // 7. 开始构建
+            buildProgress = 0.2f;
+            await Task.Run(() => Thread.Sleep(100)); // 让进度条显示
+
+            Debug.Log($"构建AssetBundle: {bundleName}, 包含资源数: {assetPaths.Length}");
+            Debug.Log($"输出路径: {outputPath}");
+
+            // 8. 执行构建
+            buildProgress = 0.5f;
+            var result = BuildPipeline.BuildAssetBundles(outputPath, builds.ToArray(), buildOptions, buildTarget);
+
+            if (result == null)
+            {
+                Debug.LogError($"构建AssetBundle '{bundleName}' 失败");
+                return;
+            }
+
+            // 9. 构建完成
+            buildProgress = 1.0f;
+            await Task.Run(() => Thread.Sleep(500)); // 显示完成状态
+
+            Debug.Log($"AssetBundle '{bundleName}' 构建完成!");
+            Debug.Log($"文件大小: {new FileInfo(Path.Combine(outputPath, bundleName)).Length} bytes");
+
+            // 10. 刷新列表
+            RefreshAssetBundleList();
+            AssetDatabase.Refresh();
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"构建AssetBundle '{bundleName}' 时发生错误: {e.Message}");
+            Debug.LogError(e.StackTrace);
+        }
+        finally
+        {
+            isBuildingSingle = false;
+            currentBuildingBundle = "";
+            buildProgress = 0f;
+        }
+    }
+
+    // 构建AssetBundle及其依赖
+    private async void BuildAssetBundleWithDependencies(string bundleName)
+    {
+        if (isBuildingSingle)
+        {
+            Debug.LogWarning("正在构建中，请等待完成...");
+            return;
+        }
+        //if (!EditorUtility.DisplayDialog("构建确认",
+        //    $"确定要构建 '{bundleName}' 及其所有依赖吗？", "确定", "取消"))
+        //{
+        //    return;
+        //}
+        try
+        {
+            isBuildingSingle = true;
+            currentBuildingBundle = bundleName;
+            buildProgress = 0f;
+
+            Debug.Log($"开始构建AssetBundle及其依赖: {bundleName}");
+
+            // 1. 保存资源关联数据
+            GenerateAssetBundleInfo();
+
+            // 2. 获取构建配置
+            AssetBundleBuildTab buildTab = AssetBundleBrowserMain.instance?.m_BuildTab;
+            if (buildTab == null)
+            {
+                Debug.LogError("无法获取AssetBundleBrowser的BuildTab");
+                return;
+            }
+
+            // 3. 获取要构建的AssetBundle及其依赖
+            var bundlesToBuild = new HashSet<string>();
+            CollectBundleDependencies(bundleName, bundlesToBuild);
+
+            if (bundlesToBuild.Count == 0)
+            {
+                Debug.LogWarning("没有找到要构建的AssetBundle");
+                return;
+            }
+
+            Debug.Log($"将要构建 {bundlesToBuild.Count} 个AssetBundle:");
+            foreach (var bundle in bundlesToBuild)
+            {
+                Debug.Log($"  - {bundle}");
+            }
+
+            // 4. 获取构建参数
+            // 3. 获取构建参数
+            BuildTarget buildTarget = (BuildTarget)buildTab.M_UserData.m_BuildTarget;
+            BuildAssetBundleOptions buildOptions = buildTab.GetOpt();
+
+            // 5. 创建临时构建目标目录
+            string outputPath = AssetBundleBrowserMain.instance.m_BuildTabData.m_OutputPath;
+            if (string.IsNullOrEmpty(outputPath))
+            {
+                outputPath = "AssetBundles/" + buildTarget;
+            }
+
+            // 确保输出目录存在
+            Directory.CreateDirectory(outputPath);
+
+            // 6. 创建AssetBundle构建配置
+            var builds = new List<AssetBundleBuild>();
+
+            foreach (var bundle in bundlesToBuild)
+            {
+                string[] assetPaths = AssetDatabase.GetAssetPathsFromAssetBundle(bundle);
+                if (assetPaths.Length > 0)
+                {
+                    var build = new AssetBundleBuild
+                    {
+                        assetBundleName = bundle,
+                        assetNames = assetPaths
+                    };
+                    builds.Add(build);
+                }
+            }
+
+            if (builds.Count == 0)
+            {
+                Debug.LogWarning("没有找到有效的AssetBundle进行构建");
+                return;
+            }
+
+            // 7. 开始构建
+            buildProgress = 0.2f;
+            await Task.Run(() => Thread.Sleep(100)); // 让进度条显示
+
+            Debug.Log($"构建 {builds.Count} 个AssetBundle");
+            Debug.Log($"输出路径: {outputPath}");
+
+            // 8. 执行构建
+            buildProgress = 0.5f;
+            var result = BuildPipeline.BuildAssetBundles(outputPath, builds.ToArray(), buildOptions, buildTarget);
+
+            if (result == null)
+            {
+                Debug.LogError("构建AssetBundle失败");
+                return;
+            }
+
+            // 9. 构建完成
+            buildProgress = 1.0f;
+            await Task.Run(() => Thread.Sleep(500)); // 显示完成状态
+
+            Debug.Log($"AssetBundle '{bundleName}' 及其依赖构建完成!");
+
+            // 10. 刷新列表
+            RefreshAssetBundleList();
+
+            AssetDatabase.Refresh();
+
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"构建AssetBundle '{bundleName}' 时发生错误: {e.Message}");
+            Debug.LogError(e.StackTrace);
+        }
+        finally
+        {
+            isBuildingSingle = false;
+            currentBuildingBundle = "";
+            buildProgress = 0f;
+        }
+    }
+
+    // 递归收集AssetBundle的依赖
+    private void CollectBundleDependencies(string bundleName, HashSet<string> bundles)
+    {
+        if (bundles.Contains(bundleName))
+        {
+            return;
+        }
+
+        bundles.Add(bundleName);
+
+        // 获取直接依赖
+        string[] dependencies = AssetDatabase.GetAssetBundleDependencies(bundleName, true);
+
+        foreach (var dependency in dependencies)
+        {
+            if (!bundles.Contains(dependency))
+            {
+                CollectBundleDependencies(dependency, bundles);
+            }
+        }
+    }
+}
+
+public static class EditorGUIExtensions
+{
+    public static bool ColorButton(string text, Color color, GUIStyle style = null, params GUILayoutOption[] options)
+    {
+        var oldColor = GUI.backgroundColor;
+        GUI.backgroundColor = color;
+
+        var buttonStyle = style ?? EditorStyles.miniButton;
+        bool result = GUILayout.Button(text, buttonStyle, options);
+
+        GUI.backgroundColor = oldColor;
+        return result;
     }
 }
